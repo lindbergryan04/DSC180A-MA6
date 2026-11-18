@@ -33,3 +33,50 @@ make: *** [test] Error 1
 ## How the fault checks were run
 
 Codex introduced these changes one at a time in a disposable checkout of the working pipeline. For each Python edit it ran the full suite, supplied a representative PostToolUse Edit event to the actual project hook on stdin, recorded stderr and exit status, and repaired the edit in the next Codex turn. These are direct hook invocations. The output does not establish delivery through an interactive Claude session.
+
+## A same-day component reaches the model
+
+In `feature_columns`, replaced `if c not in FORBIDDEN` with `if c not in FORBIDDEN or c == "casual"`.
+
+The full suite exited with code 2. Its last lines were
+
+```text
+=========================== short test summary info ============================
+FAILED tests/test_leakage.py::test_no_forbidden_features - AssertionError: fo...
+1 failed, 16 passed in 1.44s
+make: *** [test] Error 1
+```
+
+The hook exited with code 2 and wrote the following to stderr.
+
+```text
+Leakage tests failed after editing /private/tmp/ma6-evidence.m3encmV8/candidate/src/features.py:
+feats =         dteday  instant  ...   cnt_roll_7  cnt_prior_week_same_type
+0   2011-01-10     10.0  ...  1344.000000         ...               1380.333333
+713 2012-12-31    731.0  ...  1531.428571               1642.500000
+
+[714 rows x 29 columns]
+
+    def test_no_forbidden_features(feats):
+        """Guards the gate, not the data: feature_columns() excludes FORBIDDEN by
+        construction, so this cannot discover a *new* leaky column. What it
+        catches is someone editing feature_columns() or FORBIDDEN -- which is
+        exactly the fault the Step 7 hook demonstrates."""
+        cols = set(feature_columns(feats))
+>       assert not (cols & FORBIDDEN), f"forbidden columns in feature set: {cols & FORBIDDEN}"
+E       AssertionError: forbidden columns in feature set: {'casual'}
+E       assert not ({'atemp', 'casual', 'cnt_lag_1', 'cnt_lag_7', 'cnt_prior_week_same_type', 'cnt_roll_7', ...} & {'casual', 'cnt', 'cnt_2d_bfr', 'days_since_2011', 'instant', 'registered', ...})
+
+tests/test_leakage.py:31: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_leakage.py::test_no_forbidden_features - AssertionError: fo...
+1 failed, 8 passed in 0.28s
+```
+
+Repair took one Codex turn. Removed the exception for `casual`.
+
+```text
+python -m pytest tests/ -q
+.................                                                        [100%]
+17 passed in 1.00s
+```
