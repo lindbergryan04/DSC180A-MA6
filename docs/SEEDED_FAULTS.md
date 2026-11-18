@@ -127,3 +127,43 @@ python -m pytest tests/ -q
 .................                                                        [100%]
 17 passed in 0.88s
 ```
+
+## An unknown weather label is silently accepted
+
+Removed the `if unknown` block and its `raise ValueError` from `encode_weather`. A synthetic unseen label exercises this path even though every label in the supplied CSV is known.
+
+The full suite exited with code 2. Its last lines were
+
+```text
+=========================== short test summary info ============================
+FAILED tests/test_leakage.py::test_unknown_weather_raises - Failed: DID NOT R...
+1 failed, 16 passed in 0.93s
+make: *** [test] Error 1
+```
+
+The hook exited with code 2 and wrote the following to stderr.
+
+```text
+Leakage tests failed after editing /private/tmp/ma6-evidence.m3encmV8/candidate/src/features.py:
+........F                                                                [100%]
+=================================== FAILURES ===================================
+_________________________ test_unknown_weather_raises __________________________
+
+    def test_unknown_weather_raises():
+>       with pytest.raises(ValueError, match="unmapped weather labels"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_leakage.py:81: Failed
+=========================== short test summary info ============================
+FAILED tests/test_leakage.py::test_unknown_weather_raises - Failed: DID NOT R...
+1 failed, 8 passed in 0.24s
+```
+
+Repair took one Codex turn. Restored the explicit exception for unknown labels.
+
+```text
+python -m pytest tests/ -q
+.................                                                        [100%]
+17 passed in 0.95s
+```
