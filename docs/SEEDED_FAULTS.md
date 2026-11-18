@@ -80,3 +80,50 @@ python -m pytest tests/ -q
 .................                                                        [100%]
 17 passed in 1.00s
 ```
+
+## The seven-day mean includes the forecast day
+
+In the `cnt_roll_7` assignment, replaced `out[TARGET].shift(1).rolling(LAG_WARMUP).mean()` with `out[TARGET].rolling(LAG_WARMUP).mean()`.
+
+The full suite exited with code 2. Its last lines were
+
+```text
+=========================== short test summary info ============================
+FAILED tests/test_leakage.py::test_rolling_mean_excludes_today - assert np.fl...
+1 failed, 16 passed in 0.94s
+make: *** [test] Error 1
+```
+
+The hook exited with code 2 and wrote the following to stderr.
+
+```text
+Leakage tests failed after editing /private/tmp/ma6-evidence.m3encmV8/candidate/src/features.py:
+[714 rows x 29 columns]
+
+    def test_rolling_mean_excludes_today(feats):
+        """cnt_roll_7 must be the mean of the 7 calendar days *before* today."""
+        by_date = feats.set_index("dteday")[TARGET]
+        date = feats.dteday.iloc[200]
+        window = [date - pd.Timedelta(days=k) for k in range(1, 8)]
+        if all(d in by_date.index for d in window):
+            expected = sum(by_date[d] for d in window) / 7
+>           assert feats.set_index("dteday").cnt_roll_7[date] == pytest.approx(expected)
+E           assert np.float64(4389.0) == 4414.857142857143 ± 0.00441486
+E             
+E             comparison failed
+E             Obtained: 4389.0
+E             Expected: 4414.857142857143 ± 0.00441486
+
+tests/test_leakage.py:57: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_leakage.py::test_rolling_mean_excludes_today - assert np.fl...
+1 failed, 8 passed in 0.25s
+```
+
+Repair took one Codex turn. Restored the shift before the rolling mean.
+
+```text
+python -m pytest tests/ -q
+.................                                                        [100%]
+17 passed in 0.88s
+```
