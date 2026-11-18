@@ -64,3 +64,14 @@ def test_no_missing_values(feats):
 def test_dates_are_sorted_and_unique(feats):
     assert feats.dteday.is_monotonic_increasing
     assert feats.dteday.is_unique
+
+
+def test_prior_week_matching_workdays(feats):
+    # Sun Jan 16 and the Mon Jan 17 holiday both use non-workday history.
+    by_date = feats.set_index("dteday")
+    assert "cnt_prior_week_same_type" in feature_columns(feats)
+    assert by_date.loc["2011-01-16", "cnt_prior_week_same_type"] == (822 + 1248) / 2
+    assert by_date.loc["2011-01-17", "cnt_prior_week_same_type"] == (1248 + 1204) / 2
+    # Tue Jan 18 uses only the four prior workdays, Jan 11 through 14.
+    expected = (1263 + 1162 + 1406 + 1421) / 4
+    assert by_date.loc["2011-01-18", "cnt_prior_week_same_type"] == expected
