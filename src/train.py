@@ -15,10 +15,11 @@ reason it fails is the headline result.
 
 Run: python -m src.train
 """
+import argparse
 import json
 
 import pandas as pd
-from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.base import BaseEstimator, RegressorMixin, clone
 from sklearn.dummy import DummyRegressor
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.linear_model import Ridge
@@ -26,7 +27,7 @@ from sklearn.metrics import mean_absolute_error, r2_score
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-from src.config import METRICS, PROCESSED, TARGET, TRAIN_END, VALID_END
+from src.config import EXPERIMENT_FEATURE, METRICS, PROCESSED, TARGET, TRAIN_END, VALID_END
 from src.features import feature_columns
 
 
@@ -62,32 +63,60 @@ def temporal_split(df: pd.DataFrame):
     return train, valid, test
 
 
-def fit_and_score() -> dict:
-    df = pd.read_parquet(PROCESSED)
-    cols = feature_columns(df)
-    train, valid, test = temporal_split(df)
-
-    results = {
-        "n_features": len(cols),
-        "features": cols,
-        "n_train": len(train),
-        "n_valid": len(valid),
-        "n_test": len(test),
+def scores(actual, predicted):
+    return {
+        "r2": round(float(r2_score(actual, predicted)), 4),
+        "mae": round(float(mean_absolute_error(actual, predicted)), 1),
     }
-    for name, model in MODELS.items():
-        model.fit(train[cols], train[TARGET])
+
+
+def score_models(columns, train, evaluation):
+    results = {}
+    for name, estimator in MODELS.items():
+        model = clone(estimator).fit(train[columns], train[TARGET])
         results[name] = {
-            split: {
-                "r2": round(float(r2_score(part[TARGET], model.predict(part[cols]))), 4),
-                "mae": round(float(mean_absolute_error(part[TARGET], model.predict(part[cols]))), 1),
-            }
-            for split, part in [("valid", valid), ("test", test)]
+            split: scores(part[TARGET], model.predict(part[columns]))
+            for split, part in evaluation.items()
         }
     return results
 
 
+def change_from_yesterday(columns, train, evaluation):
+    """Fit a tree to daily changes and return forecasts to the rides scale."""
+    change = train[TARGET] - train["cnt_lag_1"]
+    booster = clone(MODELS["hgb"]).fit(train[columns], change)
+    return {
+        split: scores(part[TARGET], part["cnt_lag_1"] + booster.predict(part[columns]))
+        for split, part in evaluation.items()
+    }
+
+
+def fit_and_score(validation_only=False, predict_change=False):
+    df = pd.read_parquet(PROCESSED)
+    columns = feature_columns(df)
+    train, valid, test = temporal_split(df)
+    evaluation = {"valid": valid} if validation_only else {"valid": valid, "test": test}
+    if predict_change:
+        return change_from_yesterday(columns, train, evaluation)
+
+    before = [c for c in columns if c != EXPERIMENT_FEATURE]
+    if len(before) == len(columns):
+        raise ValueError("experimental feature missing; run make features")
+    return {
+        "n_features": len(columns), "features": columns, "n_train": len(train),
+        "n_valid": len(valid), "n_test": len(test),
+        **score_models(columns, train, evaluation),
+        "before_feature": score_models(before, train, evaluation),
+    }
+
+
 if __name__ == "__main__":
-    res = fit_and_score()
-    METRICS.parent.mkdir(parents=True, exist_ok=True)
-    METRICS.write_text(json.dumps(res, indent=2))
-    print(json.dumps({k: v for k, v in res.items() if k != "features"}, indent=2))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--validation-only", action="store_true")
+    parser.add_argument("--predict-change", action="store_true")
+    args = parser.parse_args()
+    result = fit_and_score(args.validation_only, args.predict_change)
+    if not args.validation_only and not args.predict_change:
+        METRICS.parent.mkdir(parents=True, exist_ok=True)
+        METRICS.write_text(json.dumps(result, indent=2) + "\n")
+    print(json.dumps(result, indent=2))

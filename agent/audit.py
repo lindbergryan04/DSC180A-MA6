@@ -12,7 +12,8 @@ The SDK drives the same Claude Code binary the tutorial uses, so it reads
 the same endpoint settings: with Ollama running locally and
 .claude/settings.json pointing at it, no API key is needed. The model
 comes from AUDIT_MODEL (default: the local `bikeshare-coder` build).
-To run against a hosted model instead, set ANTHROPIC_BASE_URL /
+For a direct Claude subscription login, pass --claude-plan.
+To run against another hosted model, set ANTHROPIC_BASE_URL /
 ANTHROPIC_AUTH_TOKEN and AUDIT_MODEL in the environment.
 """
 from __future__ import annotations
@@ -22,6 +23,7 @@ import asyncio
 import json
 import os
 import sys
+from itertools import combinations
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +31,7 @@ import numpy as np
 import pandas as pd
 from claude_agent_sdk import (
     ClaudeAgentOptions,
+    ClaudeSDKError,
     ResultMessage,
     create_sdk_mcp_server,
     query,
@@ -44,13 +47,21 @@ from claude_agent_sdk import (
 
 @tool(
     "check_identity",
-    "Test whether any subset of candidate columns is an exact linear "
+    "Test whether up to three candidate columns form an exact linear "
     "restatement of the target column. Returns the offending subsets.",
-    {"csv_path": str, "target": str, "candidates": list},
+    {
+        "type": "object",
+        "properties": {
+            "csv_path": {"type": "string", "description": "Path to a CSV or Parquet table"},
+            "target": {"type": "string"},
+            "candidates": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["csv_path", "target", "candidates"],
+    },
 )
 async def check_identity(args: dict[str, Any]) -> dict[str, Any]:
-    df = pd.read_csv(args["csv_path"])
-    target = df[args["target"]].to_numpy(dtype=float)
+    path = Path(args["csv_path"])
+    df = pd.read_parquet(path) if path.suffix == ".parquet" else pd.read_csv(path)
     cols = [c for c in args["candidates"] if c in df.columns and c != args["target"]]
 
     # Least squares with an intercept column, so `cnt = a*x + b` is caught
@@ -58,7 +69,7 @@ async def check_identity(args: dict[str, Any]) -> dict[str, Any]:
     # first; lstsq on NaN returns garbage rather than raising.
     hits = []
     for r in (1, 2, 3):
-        for subset in _combinations(cols, r):
+        for subset in combinations(cols, r):
             block = df[list(subset) + [args["target"]]].dropna()
             if len(block) < r + 2:
                 continue
@@ -77,12 +88,6 @@ async def check_identity(args: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _combinations(items, r):
-    from itertools import combinations
-
-    return combinations(items, r)
-
-
 auditor_tools = create_sdk_mcp_server(
     name="audit", version="1.0.0", tools=[check_identity]
 )
@@ -93,8 +98,10 @@ write this code and you have no stake in it passing.
 
 Check exactly four things:
   1. Target leakage: any feature that contains, restates, or derives from
-     the target. Use the check_identity tool on the processed feature
-     table rather than judging by column names.
+     the same-day target. Obtain the actual model inputs from feature_columns,
+     then pass only those names and the absolute path to the processed Parquet
+     table to check_identity. Raw excluded components and past-day counts are
+     not same-day leakage.
   2. Temporal validity: splits by date not at random; every rolling or
      lag feature shifts before it aggregates; no transformer is fit on
      validation or test rows.
@@ -141,7 +148,7 @@ REPORT_SCHEMA = {
 }
 
 
-async def audit_repo(repo: Path) -> dict[str, Any]:
+async def audit_repo(repo: Path, claude_plan: bool = False) -> dict[str, Any]:
     options = ClaudeAgentOptions(
         system_prompt=SYSTEM,
         cwd=str(repo),
@@ -158,7 +165,13 @@ async def audit_repo(repo: Path) -> dict[str, Any]:
         # but has no Edit or Write to grant.
         permission_mode="default",
         max_turns=40,
-        model=os.environ.get("AUDIT_MODEL", "bikeshare-coder"),
+        model=os.environ.get("AUDIT_MODEL", "sonnet" if claude_plan else "bikeshare-coder"),
+        setting_sources=["user"] if claude_plan else None,
+        settings=json.dumps({"env": {
+            "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+            "ANTHROPIC_AUTH_TOKEN": "",
+            "ANTHROPIC_API_KEY": "",
+        }}) if claude_plan else None,
         output_format={"type": "json_schema", "schema": REPORT_SCHEMA},
     )
 
@@ -189,15 +202,26 @@ async def main() -> None:
     ap.add_argument("repos", nargs="+", type=Path)
     ap.add_argument("--out", type=Path, default=Path("audit.jsonl"))
     ap.add_argument("--concurrency", type=int, default=4)
+    ap.add_argument("--claude-plan", action="store_true",
+                    help="use your signed-in Claude Code plan for the review")
     ns = ap.parse_args()
 
     sem = asyncio.Semaphore(ns.concurrency)
 
     async def bounded(repo: Path) -> dict[str, Any]:
         async with sem:
-            return await audit_repo(repo)
+            try:
+                return await audit_repo(repo.resolve(), ns.claude_plan)
+            except ClaudeSDKError as exc:
+                return {"repo": repo.resolve().name, "error": "run_failed", "raw": str(exc)[:500]}
 
     results = await asyncio.gather(*(bounded(r) for r in ns.repos))
+    failures = [row for row in results if row.get("error")]
+    if failures and len(failures) == len(results):
+        for failure in failures:
+            print(f"{failure['repo']}: {failure['error']}: {failure.get('raw', '')}", file=sys.stderr)
+        raise SystemExit(1)
+    ns.out.parent.mkdir(parents=True, exist_ok=True)
     with ns.out.open("w") as fh:
         for row in results:
             fh.write(json.dumps(row) + "\n")

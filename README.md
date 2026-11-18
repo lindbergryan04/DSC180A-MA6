@@ -22,7 +22,7 @@ needed. Nothing leaves your laptop.
     make model          # pulls the base model, builds `bikeshare-coder` with a 64k context
     make check-model    # confirms Claude Code can reach it and that tool calls work
     make all            # data -> features -> train, writes reports/metrics.json
-    make test           # 14 tests
+    make test           # verification suite
 
     # 4. Start the agent, from the repo root
     claude
@@ -30,6 +30,28 @@ needed. Nothing leaves your laptop.
 `.claude/settings.json` points Claude Code at `http://localhost:11434` and
 names the model, so `claude` works with no environment variables. Run
 `/status` inside Claude Code to confirm it says `bikeshare-coder`.
+
+### Reproduce the submitted experiments
+
+With the pinned Python environment active, run:
+
+```sh
+make all
+make test
+python -m src.train --predict-change
+```
+
+The default metrics file contains the four models with the new feature at
+the top level and the four original runs under `before_feature`. The
+change-from-yesterday experiment prints its results separately. Add
+`--validation-only` to either Python training command while selecting models.
+
+To run the self-audit from a terminal already signed in to a Claude
+subscription, use the following after building the feature table:
+
+```sh
+python agent/audit.py . --claude-plan --out reports/audit.jsonl
+```
 
 ### Which base model
 

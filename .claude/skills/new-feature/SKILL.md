@@ -6,7 +6,8 @@ allowed-tools: Read, Edit, Bash(python -m pytest*), Bash(make*)
 
 # Current feature set
 
-!`python -c "import pandas as pd; from src.features import feature_columns; print(', '.join(feature_columns(pd.read_parquet('data/processed/features.parquet'))))"`
+Read `src/features.py` to see how the current predictors are built and selected.
+If `reports/metrics.json` exists, its `features` list shows the inputs used in the last training run.
 
 # Adding a feature: $ARGUMENTS
 

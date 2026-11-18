@@ -8,7 +8,9 @@ rides) from calendar, weather, and lagged-demand features.
 - `make features` - build `data/processed/features.parquet`
 - `make train` - fit models, write `reports/metrics.json`
 - `make test` - pytest; run this before claiming anything works
-- `make all` - the three pipeline stages in order
+- `make all` reproduces both feature sets in `reports/metrics.json`.
+- During model selection, use `python -m src.train --validation-only`.
+- Use `/seed-fault <fault>` for a controlled change and repair in a disposable checkout.
 
 ## Non-negotiable rules
 - **Never** put `casual` or `registered` in a feature set:
@@ -23,6 +25,9 @@ rides) from calendar, weather, and lagged-demand features.
 - Report the mean baseline **and** the persistence baseline (yesterday's
   count) alongside every model. A negative R^2 is a finding, not a bug
   to hide.
+
+- For the matching-day feature, use only the previous seven calendar days.
+  Match today’s scheduled workday status, including holidays.
 
 ## Style
 - Standard library, pandas, scikit-learn only. No new dependencies

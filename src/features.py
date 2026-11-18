@@ -75,23 +75,13 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     out["cnt_lag_7"] = out[TARGET].shift(LAG_WARMUP)
     out["cnt_roll_7"] = out[TARGET].shift(1).rolling(LAG_WARMUP).mean()
 
-    # --- Matching-workday demand: mean of same-type days in the prior 7 calendar days.
-    # today's workday status is calendar info known in advance; cnt values are from
-    # d-7..d-1 only. Fallback to plain 7-day mean when no same-type days exist.
-    _cnt = out[TARGET].values
-    _wd = (out.workday == "Y").values
-    _n = len(out)
-    _result = np.full(_n, np.nan)
-    for _i in range(LAG_WARMUP, _n):
-        _window_cnt = _cnt[_i - LAG_WARMUP : _i]
-        _matching = (_wd[_i - LAG_WARMUP : _i] == _wd[_i]) & ~np.isnan(_window_cnt)
-        if _matching.any():
-            _result[_i] = _window_cnt[_matching].mean()
-        else:
-            _all_valid = ~np.isnan(_window_cnt)
-            if _all_valid.any():
-                _result[_i] = _window_cnt[_all_valid].mean()
-    out["cnt_prior_week_same_type"] = _result
+    # Only earlier observations with the forecast day's known work schedule.
+    prior_workdays = out[TARGET].where(out.workday == "Y").shift(1)
+    prior_days_off = out[TARGET].where(out.workday == "N").shift(1)
+    workday_mean = prior_workdays.rolling(LAG_WARMUP, min_periods=1).mean()
+    day_off_mean = prior_days_off.rolling(LAG_WARMUP, min_periods=1).mean()
+    same_type = workday_mean.where(out.workday == "Y", day_off_mean)
+    out["cnt_prior_week_same_type"] = same_type.fillna(out["cnt_roll_7"])
 
     return out.dropna().reset_index(drop=True)
 

@@ -8,7 +8,7 @@ import pandas as pd
 import pytest
 
 from src.config import FORBIDDEN, TARGET
-from src.features import build_features, feature_columns
+from src.features import build_features, encode_weather, feature_columns
 from src.ingest import load_raw
 
 
@@ -75,3 +75,8 @@ def test_prior_week_matching_workdays(feats):
     # Tue Jan 18 uses only the four prior workdays, Jan 11 through 14.
     expected = (1263 + 1162 + 1406 + 1421) / 4
     assert by_date.loc["2011-01-18", "cnt_prior_week_same_type"] == expected
+
+
+def test_unknown_weather_raises():
+    with pytest.raises(ValueError, match="unmapped weather labels"):
+        encode_weather(pd.Series(["GOOD", "UNSEEN"]))
