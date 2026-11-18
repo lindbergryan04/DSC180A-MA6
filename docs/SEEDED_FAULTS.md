@@ -167,3 +167,22 @@ python -m pytest tests/ -q
 .................                                                        [100%]
 17 passed in 0.95s
 ```
+
+## A change to the raw CSV outside the feature editor
+
+In the disposable checkout, Codex copied a fixture with one extra blank line onto the scratch copy of the raw CSV. Pandas reads the same records from either file. The Edit/Write matcher does not run the leakage hook for a shell file copy. A SHA-256 check during `make data` caught the byte change before the feature stage. The original assignment CSV stayed intact.
+
+The altered copy produced this output and exit code 2.
+
+```text
+python -m src.ingest
+raw CSV checksum mismatch; check the source file
+make: *** [data] Error 1
+```
+
+Restoring the original bytes produced this result.
+
+```text
+python -m src.ingest
+OK ingest: 728 rows, 2011-01-03 -> 2012-12-31
+```
