@@ -75,6 +75,24 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     out["cnt_lag_7"] = out[TARGET].shift(LAG_WARMUP)
     out["cnt_roll_7"] = out[TARGET].shift(1).rolling(LAG_WARMUP).mean()
 
+    # --- Matching-workday demand: mean of same-type days in the prior 7 calendar days.
+    # today's workday status is calendar info known in advance; cnt values are from
+    # d-7..d-1 only. Fallback to plain 7-day mean when no same-type days exist.
+    _cnt = out[TARGET].values
+    _wd = (out.workday == "Y").values
+    _n = len(out)
+    _result = np.full(_n, np.nan)
+    for _i in range(LAG_WARMUP, _n):
+        _window_cnt = _cnt[_i - LAG_WARMUP : _i]
+        _matching = (_wd[_i - LAG_WARMUP : _i] == _wd[_i]) & ~np.isnan(_window_cnt)
+        if _matching.any():
+            _result[_i] = _window_cnt[_matching].mean()
+        else:
+            _all_valid = ~np.isnan(_window_cnt)
+            if _all_valid.any():
+                _result[_i] = _window_cnt[_all_valid].mean()
+    out["cnt_prior_week_same_type"] = _result
+
     return out.dropna().reset_index(drop=True)
 
 
