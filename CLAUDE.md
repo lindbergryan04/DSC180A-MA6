@@ -10,6 +10,7 @@ rides) from calendar, weather, and lagged-demand features.
 - `make test` - pytest; run this before claiming anything works
 - `make all` reproduces both feature sets in `reports/metrics.json`.
 - During model selection, use `python -m src.train --validation-only`.
+- Add or try any predictor only through `/new-feature <name>` (test first).
 - Use `/seed-fault <fault>` for a controlled change and repair in a disposable checkout.
 
 ## Non-negotiable rules
