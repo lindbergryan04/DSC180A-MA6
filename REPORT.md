@@ -35,7 +35,38 @@ For staging bikes with a roughly constant cost per bike misplaced, persistence i
 
 # Attribution
 
-Qwen3.5:9b (9 billion parameters, local Ollama, 65,536-token context) was used for initial exploration through Claude Code. The attempted Ollama Cloud switch to `glm-5.3-flash` returned a billing error before it answered. Ryan then used Claude Sonnet 4.6 through Claude Pro for the successful `/new-feature` run and used the same Claude subscription for the Agent SDK self-audit. OpenAI Codex (GPT-6) assisted with verification, experiments and drafting. Parameter counts for the two hosted models were unavailable.
+Qwen3.5:9b (9 billion parameters, local Ollama, 65,536-token context) ran the first Claude Code exploration on Ryan's laptop. Local turns took several minutes, and an attempted Ollama Cloud switch to `glm-5.3-flash` returned a billing error before it answered, so Ryan switched Claude Code to Claude Sonnet 4.6 on his Claude Pro subscription. OpenAI Codex (GPT-6) handled verification, the experiments and the first draft of this report. Claude Opus 5.5 checked the finished repository against the assignment on November 22 and made the last edits. Parameter counts for the three hosted models were unavailable.
 
-- **Agent contributions.** Sonnet implemented the matching-workday feature in `src/features.py`. Codex verified the results on all 714 eligible dates and expressed the same feature with an explicit shift before the rolling averages. Codex wrote the named-date test, the raw-column and unseen-weather tests, the validation comparison, the target-transformation experiment, the raw-file checksum, the fault-reproduction workflow and its documentation, and this report draft. It verified the raw counts and ran fault injections in a disposable checkout.
-- **Student decisions and remaining review.** Ryan selected the course starter, ran the baseline, and chose to move agent inference off his laptop when local turns took several minutes. The split and two baselines were prescribed by the starter. Codex proposed the matching-day feature, the daily-change transformation, and the operating-cost assumption in Exercise 5. Those proposals and the evidence for them are identified in the decision log for Ryan's review.
+**Agent-generated files and functions**
+
+- **Claude Sonnet 4.6**
+  - `src/features.py`: the first version of `cnt_prior_week_same_type`, written through `/new-feature`.
+  - `reports/audit.jsonl`: the self-audit, run with `python agent/audit.py . --claude-plan`.
+  - `docs/SEEDED_FAULTS.md`: the fault and repair edits quoted from the three live `/seed-fault` runs.
+- **Codex (GPT-6)**
+  - `src/features.py`: rewrote `cnt_prior_week_same_type` with an explicit shift before the rolling averages. Its values match Sonnet's version on all 714 dates.
+  - `tests/test_leakage.py`: `test_prior_week_matching_workdays` and `test_unknown_weather_raises`.
+  - `tests/test_contract.py`: `test_every_raw_column_has_a_role`.
+  - `src/config.py`: `RAW_PREDICTORS`, `EXPERIMENT_FEATURE` and `RAW_SHA256`.
+  - `src/ingest.py`: the raw-file checksum check.
+  - `src/train.py`: the `--validation-only` and `--predict-change` options and the `before_feature` comparison.
+  - `agent/audit.py`: the `--claude-plan` option, a JSON-schema tool input, Parquet support and a revised audit prompt.
+  - `.claude/`: the `seed-fault` skill, the hook's `.venv/bin/python` fallback, and the read instructions that replaced the shell command in the `new-feature` skill.
+  - `CLAUDE.md`, `README.md` and `.gitignore`: the edits in commit `f678f09`.
+  - The 575-subset identity check, the direct hook-invocation evidence in `docs/SEEDED_FAULTS.md`, and the first draft of this report.
+- **Claude Opus 5.5**
+  - `CLAUDE.md`: the `/new-feature` line.
+  - `docs/DECISIONS.md`: the weather-label counts and the 2026-11-22 entries.
+  - `docs/SEEDED_FAULTS.md`: the live-run sections, copied from Claude Code's debug logs.
+  - `REPORT.md`: this Attribution section.
+  - Verification: reran `make all` and `make test` from a fresh clone and matched all eight table rows to `reports/metrics.json`.
+
+**Ryan's decisions**
+
+The split, both baselines and the forbidden columns came with the starter. Codex proposed the feature, the transformation and the Exercise 5 cost assumption, and Claude Opus 5.5 proposed the last item. Ryan reviewed each proposal before keeping it. Every item has a line in `docs/DECISIONS.md`.
+
+1. Switch Claude Code from local Qwen3.5:9b to Sonnet 4.6 after slow local turns and the Ollama Cloud billing error (2026-11-18, commit `f678f09`).
+2. Keep the matching-workday feature under the starter skill's 0.01 validation-R² threshold. Boosting gained 0.0584 and ridge lost 0.0016 (2026-11-18, `f678f09`). Keep it again after the self-audit (`73d8f00`).
+3. Exercise 4: fit boosting to the change from yesterday, chosen on validation, while keeping the untransformed run as the default in `reports/metrics.json` (2026-11-18, `f678f09`).
+4. Exercise 5: recommend persistence over ridge at a constant cost per misplaced bike (2026-11-22, `cc823a7`).
+5. Name `/new-feature` in CLAUDE.md (2026-11-22, `cc823a7`) and repeat the seeded faults through Claude Code itself (2026-11-22, `d2a9eb5`).
