@@ -34,6 +34,15 @@ make: *** [test] Error 1
 
 Codex introduced these changes one at a time in a disposable checkout of the working pipeline. For each Python edit it ran the full suite, supplied a representative PostToolUse Edit event to the actual project hook on stdin, recorded stderr and exit status, and repaired the edit in the next Codex turn. These are direct hook invocations. The output does not establish delivery through an interactive Claude session.
 
+On 2026-11-22 the three code faults were repeated through Claude Code itself, so the hook fired on the agent's own Edit calls. Each run invoked the project's `/seed-fault` skill headless with Claude Sonnet 4.6 (Ryan's Claude subscription) in a throwaway clone of commit `cc823a7`:
+
+```sh
+claude -p "/seed-fault <fault>" --model sonnet --permission-mode acceptEdits \
+  --output-format stream-json --verbose --debug-file <fault>.debug.log
+```
+
+Two more options were passed. `--settings` pointed Claude Code at the Anthropic API instead of the local Ollama endpoint in `.claude/settings.json`, and `--append-system-prompt` said the directory was already a disposable clone. The command ran under `env -i` because the parent Claude desktop session exports `CLAUDE_CODE_SIMPLE`, which disables hooks in child sessions. The session transcript does not store PostToolUse hook output, so the hook evidence below is copied from the `--debug-file` log, where Claude Code writes `Hook PostToolUse:Edit (PostToolUse) error:` followed by the hook's stderr. A first forbidden-column attempt without that log left no record of the hook and was repeated with logging. The clone path is shortened to `<clone>`. In every run the repair Edit triggered the hook again, which passed without output.
+
 ## A same-day component reaches the model
 
 In `feature_columns`, replaced `if c not in FORBIDDEN` with `if c not in FORBIDDEN or c == "casual"`.
@@ -80,6 +89,51 @@ python -m pytest tests/ -q
 .................                                                        [100%]
 17 passed in 1.00s
 ```
+
+### Live Claude Code run
+
+Sonnet's fault edit:
+
+```diff
+-    return [c for c in numeric if c not in FORBIDDEN]
++    return [c for c in numeric if c not in FORBIDDEN or c == "casual"]
+```
+
+Hook stderr from the debug log:
+
+```text
+Leakage tests failed after editing <clone>/src/features.py:
+feats =         dteday  instant  ...   cnt_roll_7  cnt_prior_week_same_type
+0   2011-01-10     10.0  ...  1344.000000         ...               1380.333333
+713 2012-12-31    731.0  ...  1531.428571               1642.500000
+
+[714 rows x 29 columns]
+
+    def test_no_forbidden_features(feats):
+        """Guards the gate, not the data: feature_columns() excludes FORBIDDEN by
+        construction, so this cannot discover a *new* leaky column. What it
+        catches is someone editing feature_columns() or FORBIDDEN -- which is
+        exactly the fault the Step 7 hook demonstrates."""
+        cols = set(feature_columns(feats))
+>       assert not (cols & FORBIDDEN), f"forbidden columns in feature set: {cols & FORBIDDEN}"
+E       AssertionError: forbidden columns in feature set: {'casual'}
+E       assert not ({'atemp', 'casual', 'cnt_lag_1', 'cnt_lag_7', 'cnt_prior_week_same_type', 'cnt_roll_7', ...} & {'casual', 'cnt', 'cnt_2d_bfr', 'days_since_2011', 'instant', 'registered', ...})
+
+tests/test_leakage.py:31: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_leakage.py::test_no_forbidden_features - AssertionError: fo...
+1 failed, 8 passed in 0.28s
+```
+
+`make test` then ended with
+
+```text
+FAILED tests/test_leakage.py::test_no_forbidden_features - AssertionError: fo...
+1 failed, 16 passed in 1.01s
+make: *** [test] Error 1
+```
+
+Repair took one Edit, Sonnet's next tool call after that `make test`. Sonnet did not rerun `make test` after the repair. Afterwards the clone had no uncommitted changes, and a separate `python -m pytest tests/ -q` there gave `17 passed in 1.27s`.
 
 ## The seven-day mean includes the forecast day
 
@@ -128,6 +182,51 @@ python -m pytest tests/ -q
 17 passed in 0.88s
 ```
 
+### Live Claude Code run
+
+Sonnet's fault edit:
+
+```diff
+-    out["cnt_roll_7"] = out[TARGET].shift(1).rolling(LAG_WARMUP).mean()
++    out["cnt_roll_7"] = out[TARGET].rolling(LAG_WARMUP).mean()
+```
+
+Hook stderr from the debug log:
+
+```text
+Leakage tests failed after editing <clone>/src/features.py:
+[714 rows x 29 columns]
+
+    def test_rolling_mean_excludes_today(feats):
+        """cnt_roll_7 must be the mean of the 7 calendar days *before* today."""
+        by_date = feats.set_index("dteday")[TARGET]
+        date = feats.dteday.iloc[200]
+        window = [date - pd.Timedelta(days=k) for k in range(1, 8)]
+        if all(d in by_date.index for d in window):
+            expected = sum(by_date[d] for d in window) / 7
+>           assert feats.set_index("dteday").cnt_roll_7[date] == pytest.approx(expected)
+E           assert np.float64(4389.0) == 4414.857142857143 ± 0.00441486
+E             
+E             comparison failed
+E             Obtained: 4389.0
+E             Expected: 4414.857142857143 ± 0.00441486
+
+tests/test_leakage.py:57: AssertionError
+=========================== short test summary info ============================
+FAILED tests/test_leakage.py::test_rolling_mean_excludes_today - assert np.fl...
+1 failed, 8 passed in 0.23s
+```
+
+`make test` then ended with
+
+```text
+FAILED tests/test_leakage.py::test_rolling_mean_excludes_today - assert np.fl...
+1 failed, 16 passed in 0.95s
+make: *** [test] Error 1
+```
+
+Repair took one Edit, Sonnet's next tool call after that `make test`. The final `make test` gave `17 passed in 1.19s`.
+
 ## An unknown weather label is silently accepted
 
 Removed the `if unknown` block and its `raise ValueError` from `encode_weather`. A synthetic unseen label exercises this path even though every label in the supplied CSV is known.
@@ -167,6 +266,47 @@ python -m pytest tests/ -q
 .................                                                        [100%]
 17 passed in 0.95s
 ```
+
+### Live Claude Code run
+
+Sonnet's fault edit:
+
+```diff
+     known = series.dropna()
+-    unknown = set(known.unique()) - set(WEATHER_ORDER)
+-    if unknown:
+-        raise ValueError(f"unmapped weather labels: {sorted(unknown)}")
+     return series.map(WEATHER_ORDER).astype(float)
+```
+
+Hook stderr from the debug log:
+
+```text
+Leakage tests failed after editing <clone>/src/features.py:
+........F                                                                [100%]
+=================================== FAILURES ===================================
+_________________________ test_unknown_weather_raises __________________________
+
+    def test_unknown_weather_raises():
+>       with pytest.raises(ValueError, match="unmapped weather labels"):
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       Failed: DID NOT RAISE ValueError
+
+tests/test_leakage.py:81: Failed
+=========================== short test summary info ============================
+FAILED tests/test_leakage.py::test_unknown_weather_raises - Failed: DID NOT R...
+1 failed, 8 passed in 0.22s
+```
+
+`make test` then ended with
+
+```text
+FAILED tests/test_leakage.py::test_unknown_weather_raises - Failed: DID NOT R...
+1 failed, 16 passed in 0.93s
+make: *** [test] Error 1
+```
+
+Repair took one Edit, Sonnet's next tool call after that `make test`. The final `make test` gave `17 passed in 0.90s`.
 
 ## A change to the raw CSV outside the feature editor
 

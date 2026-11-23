@@ -18,3 +18,4 @@ Agents append here via the `/new-feature` skill; you append here by hand.
 - 2026-11-18 — Retain the feature after the self-audit. All 714 eligible days had at least two matching days in their history. Codex checked all 575 one-, two- and three-input subsets for a same-day linear target identity and reproduced the known identity in a separate positive control.
 - 2026-11-22 — Name `/new-feature` in CLAUDE.md so a future session adds predictors through the test-first skill instead of editing `src/features.py` directly.
 - 2026-11-22 — Exercise 5: recommend persistence over ridge for staging bikes at a constant cost per misplaced bike. Ridge's test R² is 0.0695 higher, but its MAE is 107.6 rides/day worse (947.7 vs 840.1).
+- 2026-11-22 — Repeat the three code faults through Claude Code itself (Sonnet 4.6, headless `/seed-fault`) so the hook evidence comes from the agent's own Edit calls rather than direct script invocations.
