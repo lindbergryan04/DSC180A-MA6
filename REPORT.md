@@ -59,16 +59,17 @@ Qwen3.5:9b (9 billion parameters, local Ollama, 65,536-token context) ran the fi
   - `CLAUDE.md`: the `/new-feature` line.
   - `docs/DECISIONS.md`: the weather-label counts and the 2026-11-22 entries.
   - `docs/SEEDED_FAULTS.md`: the live-run sections, copied from Claude Code's debug logs.
-  - `REPORT.md`: this Attribution section.
+  - `REPORT.md`: this Attribution section and the 2026-11-25 revisions to Exercises 4 and 5.
+  - `src/train.py`, `tests/test_contract.py` and `README.md`: both baselines in the `--predict-change` run, with `test_change_target_run_reports_both_baselines`.
   - `docs/AUDIT.md`: the headless auditor run, the independent checks, and a draft of the verdict for Ryan to confirm.
   - Verification: reran `make all` and `make test` from a fresh clone and matched all eight table rows to `reports/metrics.json`.
 
 **Ryan's decisions**
 
-The split, both baselines and the forbidden columns came with the starter. Codex proposed the feature, the transformation and the Exercise 5 cost assumption, and Claude Opus 5.5 proposed the last item. Ryan reviewed each proposal before keeping it. Every item has a line in `docs/DECISIONS.md`.
+The split, both baselines and the forbidden columns came with the starter. Codex proposed the feature, the transformation and the Exercise 5 cost assumption. Claude Opus 5.5 proposed item 5 and the 2026-11-25 revisions, which answer Sweekrit's audit of this repository. Ryan reviewed each proposal before keeping it. Every item has a line in `docs/DECISIONS.md`.
 
 1. Switch Claude Code from local Qwen3.5:9b to Sonnet 4.6 after slow local turns and the Ollama Cloud billing error (2026-11-18, commit `f678f09`).
 2. Keep the matching-workday feature under the starter skill's 0.01 validation-R² threshold. Boosting gained 0.0584 and ridge lost 0.0016 (2026-11-18, `f678f09`). Keep it again after the self-audit (`73d8f00`).
-3. Exercise 4: fit boosting to the change from yesterday, chosen on validation, while keeping the untransformed run as the default in `reports/metrics.json` (2026-11-18, `f678f09`).
-4. Exercise 5: recommend persistence over ridge at a constant cost per misplaced bike (2026-11-22, `cc823a7`).
+3. Exercise 4: fit boosting to the change from yesterday, chosen on validation, while keeping the untransformed run as the default in `reports/metrics.json` (2026-11-18, `f678f09`). Report both baselines with it (2026-11-25, `70f1c1c` and `db2111b`).
+4. Exercise 5: recommend persistence over ridge at a constant cost per misplaced bike (2026-11-22, `cc823a7`). After the peer audit, state that validation reverses the ranking and keep persistence only as the simpler default (2026-11-25, `db2111b`).
 5. Name `/new-feature` in CLAUDE.md (2026-11-22, `cc823a7`) and repeat the seeded faults through Claude Code itself (2026-11-22, `d2a9eb5`).
