@@ -19,3 +19,5 @@ Agents append here via the `/new-feature` skill; you append here by hand.
 - 2026-11-22 — Name `/new-feature` in CLAUDE.md so a future session adds predictors through the test-first skill instead of editing `src/features.py` directly.
 - 2026-11-22 — Exercise 5: recommend persistence over ridge for staging bikes at a constant cost per misplaced bike. Ridge's test R² is 0.0695 higher, but its MAE is 107.6 rides/day worse (947.7 vs 840.1).
 - 2026-11-22 — Repeat the three code faults through Claude Code itself (Sonnet 4.6, headless `/seed-fault`) so the hook evidence comes from the agent's own Edit calls rather than direct script invocations.
+- 2026-11-25 — After Sweekrit's audit, report the mean and persistence baselines with the Exercise 4 change-from-yesterday booster. It beats persistence on test R² (0.5789 vs 0.5099) but not on test MAE (874.0 vs 840.1).
+- 2026-11-25 — After Sweekrit's audit, state in Exercise 5 that the persistence-over-ridge ranking holds on test MAE (840.1 vs 947.7) but reverses on validation (ridge 830.6 vs 900.6). Keep persistence as the default because it needs no fitted model or weather inputs, not as the measured winner.
