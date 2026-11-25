@@ -35,7 +35,7 @@ For staging bikes with a roughly constant cost per bike misplaced, persistence i
 
 # Attribution
 
-Qwen3.5:9b (9 billion parameters, local Ollama, 65,536-token context) ran the first Claude Code exploration on Ryan's laptop. Local turns took several minutes, and an attempted Ollama Cloud switch to `glm-5.3-flash` returned a billing error before it answered, so Ryan switched Claude Code to Claude Sonnet 4.6 on his Claude Pro subscription. OpenAI Codex (GPT-6) handled verification, the experiments and the first draft of this report. Claude Opus 5.5 checked the finished repository against the assignment on November 22 and made the last edits. Parameter counts for the three hosted models were unavailable.
+Qwen3.5:9b (9 billion parameters, local Ollama, 65,536-token context) ran the first Claude Code exploration on Ryan's laptop. Local turns took several minutes, and an attempted Ollama Cloud switch to `glm-5.3-flash` returned a billing error before it answered, so Ryan switched Claude Code to Claude Sonnet 4.6 on his Claude Pro subscription. OpenAI Codex (GPT-6) handled verification, the experiments and the first draft of this report. Claude Opus 5.5 checked the finished repository against the assignment on November 22, ran the peer audit on November 25, and made the last edits. Parameter counts for the three hosted models were unavailable.
 
 **Agent-generated files and functions**
 
@@ -43,6 +43,7 @@ Qwen3.5:9b (9 billion parameters, local Ollama, 65,536-token context) ran the fi
   - `src/features.py`: the first version of `cnt_prior_week_same_type`, written through `/new-feature`.
   - `reports/audit.jsonl`: the self-audit, run with `python agent/audit.py . --claude-plan`.
   - `docs/SEEDED_FAULTS.md`: the fault and repair edits quoted from the three live `/seed-fault` runs.
+  - `docs/AUDIT.md`: the `leakage-auditor` report on the teammate's repository.
 - **Codex (GPT-6)**
   - `src/features.py`: rewrote `cnt_prior_week_same_type` with an explicit shift before the rolling averages. Its values match Sonnet's version on all 714 dates.
   - `tests/test_leakage.py`: `test_prior_week_matching_workdays` and `test_unknown_weather_raises`.
@@ -59,6 +60,7 @@ Qwen3.5:9b (9 billion parameters, local Ollama, 65,536-token context) ran the fi
   - `docs/DECISIONS.md`: the weather-label counts and the 2026-11-22 entries.
   - `docs/SEEDED_FAULTS.md`: the live-run sections, copied from Claude Code's debug logs.
   - `REPORT.md`: this Attribution section.
+  - `docs/AUDIT.md`: the headless auditor run, the independent checks, and a draft of the verdict for Ryan to confirm.
   - Verification: reran `make all` and `make test` from a fresh clone and matched all eight table rows to `reports/metrics.json`.
 
 **Ryan's decisions**
