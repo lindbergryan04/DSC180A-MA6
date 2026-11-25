@@ -6,7 +6,7 @@ from sklearn.metrics import r2_score
 from src.config import FORBIDDEN, LAG_WARMUP, RAW_PREDICTORS, TARGET
 from src.features import build_features, feature_columns, reindex_to_calendar
 from src.ingest import load_raw
-from src.train import MODELS, temporal_split
+from src.train import MODELS, fit_and_score, temporal_split
 
 
 @pytest.fixture(scope="module")
@@ -63,3 +63,11 @@ def test_every_raw_column_has_a_role(raw):
     unexpected = set(raw.columns) - classified
     assert not unexpected, f"unclassified raw columns: {sorted(unexpected)}"
     assert not RAW_PREDICTORS & FORBIDDEN
+
+
+def test_change_target_run_reports_both_baselines(feats):
+    """CLAUDE.md requires the mean and persistence baselines next to every
+    model score, including the Exercise 4 change-from-yesterday run."""
+    res = fit_and_score(validation_only=True, predict_change=True, df=feats)
+    assert {"baseline_mean", "baseline_persistence", "hgb_change"} <= set(res)
+    assert all(set(splits) == {"valid"} for splits in res.values())

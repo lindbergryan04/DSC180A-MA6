@@ -70,9 +70,9 @@ def scores(actual, predicted):
     }
 
 
-def score_models(columns, train, evaluation):
+def score_models(columns, train, evaluation, models=MODELS):
     results = {}
-    for name, estimator in MODELS.items():
+    for name, estimator in models.items():
         model = clone(estimator).fit(train[columns], train[TARGET])
         results[name] = {
             split: scores(part[TARGET], model.predict(part[columns]))
@@ -91,13 +91,17 @@ def change_from_yesterday(columns, train, evaluation):
     }
 
 
-def fit_and_score(validation_only=False, predict_change=False):
-    df = pd.read_parquet(PROCESSED)
+def fit_and_score(validation_only=False, predict_change=False, df=None):
+    df = pd.read_parquet(PROCESSED) if df is None else df
     columns = feature_columns(df)
     train, valid, test = temporal_split(df)
     evaluation = {"valid": valid} if validation_only else {"valid": valid, "test": test}
     if predict_change:
-        return change_from_yesterday(columns, train, evaluation)
+        baselines = {n: m for n, m in MODELS.items() if n.startswith("baseline_")}
+        return {
+            **score_models(columns, train, evaluation, baselines),
+            "hgb_change": change_from_yesterday(columns, train, evaluation),
+        }
 
     before = [c for c in columns if c != EXPERIMENT_FEATURE]
     if len(before) == len(columns):

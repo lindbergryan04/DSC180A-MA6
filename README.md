@@ -43,7 +43,8 @@ python -m src.train --predict-change
 
 The default metrics file contains the four models with the new feature at
 the top level and the four original runs under `before_feature`. The
-change-from-yesterday experiment prints its results separately. Add
+change-from-yesterday experiment prints its results separately, next to
+the mean and persistence baselines on the same days. Add
 `--validation-only` to either Python training command while selecting models.
 
 To run the self-audit from a terminal already signed in to a Claude
